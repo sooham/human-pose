@@ -103,3 +103,4 @@ ENV/
 PASCAL_Context
 VOC_2010
 VOC_2012
+*.npz
