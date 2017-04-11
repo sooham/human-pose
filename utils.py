@@ -35,7 +35,6 @@ class PASCAL_context:
         ''' Return labels with generator for images and segmented images '''
         seg_dir = conf.get('PASCAL_Context', 'segmented_images')
         train_dir = conf.get('PASCAL_Context', 'trainval_images')
-        test_dir = conf.get('PASCAL_Context', 'test_images')
         labels_file = conf.get('PASCAL_Context', 'labels')
 
         labels = None
@@ -46,52 +45,67 @@ class PASCAL_context:
             labels = np.array([labels_dict[str(k)] for k in range(1, len(labels_dict) + 1)])
 
 
+
         def test_generator():
             ''' a generator for test images'''
             i = 0
 
-            images = [file for file in os.listdir(test_dir) if file.endswith('.jpg')]
-            l = len(images)
-
-            test_images = [os.path.join(test_dir, f) for f in images]
-
-            while i < l:
-                x = [imread(f) for f in test_images[i: i+1]]
-                x_color = [imresize(f, (96, 117)).ravel() for f in x]
-                x_bw = [rgb2gray(imresize(f, (96, 117))).ravel() for f in x]
-                i += 1
-                yield l, x_color[0], x_bw[0]
-
-        def train_generator():
-            ''' a generator for train images'''
-            i = 0
-
-            images = list(set(
+            test_images = list(set(
                 [file[:-4] for file in os.listdir(seg_dir) if file.endswith('.mat')]
                 ).intersection(
                 [file[:-4] for file in os.listdir(train_dir) if file.endswith('.jpg')]
-            ))
-            l = len(images)
+            ))[:1000]
 
-            seg_images = [os.path.join(seg_dir, f + '.mat') for f in images]
-            train_images = [os.path.join(train_dir, f + '.jpg') for f in images]
+            l = len(test_images)
+
+            seg_images = [os.path.join(seg_dir, f + '.mat') for f in test_images]
+            test_images = [os.path.join(train_dir, f + '.jpg') for f in test_images]
 
             while i < l:
-                if (i + batch_size) < l:
-                    x = [imread(f) for f in train_images[i: i+batch_size]]
-                    y = [sio.loadmat(f)['LabelMap'] for f in seg_images[i: i+batch_size]]
-                else:
-                    x = [imread(f) for f in train_images[i:]]
-                    x += [imread(f) for f in train_images[:-l+i+batch_size]]
-                    y = [sio.loadmat(f)['LabelMap'] for f in seg_images[i:]]
-                    y += [sio.loadmat(f)['LabelMap'] for f in seg_images[:-l+i+batch_size]]
+                x = [imread(f) for f in test_images[i: i+1]]
+                y = [sio.loadmat(f)['LabelMap'] / 459.0 for f in seg_images[i: i+batch_size]]
 
                 if bw:
                     x = [rgb2gray(imresize(f, (96, 117))).ravel() for f in x]
                 else:
                     x = [imresize(f, (96, 117)).ravel() for f in x]
 
-                y = [imresize(f, (96, 117)).ravel() for f in y]
+                y = [imresize(f, (96, 117), mode='F', interp='nearest').ravel() * 459.0 for f in y]
+                i += 1
+                yield l, np.float32(x[0]), np.float32(y[0])
+
+
+        def train_generator():
+            ''' a generator for train images'''
+            i = 0
+
+            train_images = list(set(
+                [file[:-4] for file in os.listdir(seg_dir) if file.endswith('.mat')]
+                ).intersection(
+                [file[:-4] for file in os.listdir(train_dir) if file.endswith('.jpg')]
+            ))[1000:]
+
+            l = len(train_images)
+
+            seg_images = [os.path.join(seg_dir, f + '.mat') for f in train_images]
+            train_images = [os.path.join(train_dir, f + '.jpg') for f in train_images]
+
+            while i < l:
+                if (i + batch_size) < l:
+                    x = [imread(f) for f in train_images[i: i+batch_size]]
+                    y = [sio.loadmat(f)['LabelMap'] / 459.0 for f in seg_images[i: i+batch_size]]
+                else:
+                    x = [imread(f) for f in train_images[i:]]
+                    x += [imread(f) for f in train_images[:-l+i+batch_size]]
+                    y = [sio.loadmat(f)['LabelMap'] / 459.0 for f in seg_images[i:]]
+                    y += [sio.loadmat(f)['LabelMap'] / 459.0 for f in seg_images[:-l+i+batch_size]]
+
+                if bw:
+                    x = [rgb2gray(imresize(f, (96, 117))).ravel() for f in x]
+                else:
+                    x = [imresize(f, (96, 117)).ravel() for f in x]
+
+                y = [imresize(f, (96, 117), mode='F', interp='nearest').ravel() * 459.0 for f in y]
 
                 i = (i + batch_size) % l
 

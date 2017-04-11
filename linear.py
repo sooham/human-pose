@@ -17,7 +17,7 @@ test_generator = test()
 
 
 # define parameters and hyperparameters
-iters = 800  # number of iterations
+iters = 200  # number of iterations
 alpha = 0.00    # weight regularization param
 learning_rate = 0.0001 # learning rate
 print_every = 1
@@ -50,17 +50,40 @@ for i in range(iters):
 
 print('DONE TRAINING')
 np.savez('linear_weights.npz', W=W)
-# now show the outputs on the test set
-for _, image_color, image_bw in test_generator:
-    plt.figure(2)
-    a = plt.subplot(121)
-    a.imshow(image_color.reshape(96, 117, 3))
-    a = plt.subplot(122)
-    x = np.hstack((image_bw.reshape(1, -1), np.ones((1, 1), dtype=np.float32)))
-    result = np.dot(x, W).reshape(96, 117)
-    print(result[0, 3:10])
+
+# now show the outputs on the test set and the ground truth
+for _, x, y in test_generator:
+    plt.figure()
+    a = plt.subplot(131)
+    a.matshow(x.reshape(96, 117), cmap='gray')
+    a.set_xlabel('Input')
+    a = plt.subplot(132)
+    a.matshow(y.reshape(96, 117))
+    a.set_xlabel('Ground Truth')
+    a = plt.subplot(133)
+    a.set_xlabel('Predicted')
+    z = np.hstack((x.reshape(1, -1), np.ones((1, 1), dtype=np.float32)))
+    result = np.clip(np.round(np.dot(z, W).reshape(96, 117)), 1, 459)
     a.matshow(result)
+
     plt.show()
-    if raw_input('save?') == 'y':
-        plt.savefig(input('filename > '))
-    plt.close(2)
+
+    print(result[0, 3:10])
+    print('accuracy: %f' % np.mean(np.equal(result.ravel(), y)))
+
+    r = raw_input('save?')
+    if  r == 'y':
+        plt.savefig(raw_input('filename > '))
+    elif r == 'q':
+        break
+    plt.close()
+
+m = test()
+
+acc = []
+for _, x, y in m:
+    z = np.hstack((x.reshape(1, -1), np.ones((1, 1), dtype=np.float32)))
+    result = np.clip(np.round(np.dot(z, W).reshape(96, 117)), 1, 459)
+    acc.append(np.mean(np.equal(result.ravel(), y)))
+
+print('Total accuracy: %f' % np.mean(acc))
